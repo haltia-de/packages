@@ -1,0 +1,18 @@
+# Maintainer: Mikhail Nevskiy <rensomail@gmail.com>
+# Haltia as a postmarketOS user interface (ADR 0004): pmbootstrap and the
+# pmOS installer pick a UI by this name. Haltia starts through tinydm with
+# the shell's Wayland session (/usr/share/wayland-sessions/haltia.desktop).
+pkgname=postmarketos-ui-haltia
+pkgver=1.0.0
+pkgrel=0
+pkgdesc="Haltia, a calm touch desktop (postmarketOS user interface)"
+url="https://github.com/haltia-de"
+arch="noarch"
+license="GPL-2.0-only"
+depends="haltia-desktop postmarketos-base-ui tinydm"
+install="$pkgname.post-install $pkgname.post-upgrade"
+options="!check"
+
+package() {
+	mkdir -p "$pkgdir"
+}
