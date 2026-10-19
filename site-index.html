@@ -6,10 +6,24 @@
 <h1>Haltia packages</h1>
 <p>Signed Alpine packages of <a href="https://github.com/haltia-de">Haltia</a>, a calm touch desktop.
 Alpine 3.24 and postmarketOS; armv7, aarch64, x86_64.</p>
+<h2>Alpine and postmarketOS</h2>
 <pre>wget -O /etc/apk/keys/haltia-de-6ad4bb12.rsa.pub https://haltia-de.github.io/packages/haltia-de-6ad4bb12.rsa.pub
 echo https://haltia-de.github.io/packages/alpine/v3.24 &gt;&gt; /etc/apk/repositories
 apk update
 apk add haltia-desktop          # the shell and the programs
 apk add haltia-desktop-ru       # messenger, music, weather for Russian services</pre>
+<h2>Debian and Ubuntu</h2>
+<p>Ubuntu 24.04 noble (and elementary OS 8, Linux Mint 22) or Debian 13 trixie: Погода, Новости, Раскраска, Музыка, Сообщения, Видео.</p>
+<pre>sudo curl -fsSLo /usr/share/keyrings/haltia-archive-keyring.gpg https://haltia-de.github.io/packages/apt/haltia-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/haltia-archive-keyring.gpg] https://haltia-de.github.io/packages/apt $(. /etc/os-release; echo $VERSION_CODENAME) main" | sudo tee /etc/apt/sources.list.d/haltia.list
+sudo apt update
+sudo apt install haltia-weather haltia-news haltia-paint</pre>
+<h2>Flatpak</h2>
+<p>Any distribution with Flatpak; the GNOME runtime comes from Flathub.</p>
+<pre>flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak remote-add --if-not-exists haltia https://haltia-de.github.io/packages/flatpak/haltia.flatpakrepo
+flatpak install haltia io.github.haltia_de.Weather</pre>
+<p>Signing key for apt and Flatpak: <a href="apt/haltia-packages.asc">haltia-packages.asc</a>,
+fingerprint <code>1346 1D3E 8077 2926 0DD4 A614 61FC D08B BFE7 462F</code>.</p>
 <p>Спокойная сенсорная среда, которая о вас заботится. Исходники и issues — <a href="https://github.com/haltia-de">github.com/haltia-de</a>.</p>
 </body></html>

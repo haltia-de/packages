@@ -31,6 +31,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           B8K_APK_PRIVKEY: ${{ secrets.B8K_APK_PRIVKEY }}
         run: docker run --rm -v "$PWD:/src" -e GH_TOKEN -e B8K_APK_PRIVKEY alpine:3.24 sh /src/build.sh
+      - name: The apt repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HALTIA_GPG_PRIVKEY: ${{ secrets.HALTIA_GPG_PRIVKEY }}
+        run: docker run --rm -v "$PWD:/src" -e GH_TOKEN -e HALTIA_GPG_PRIVKEY debian:trixie sh /src/build-apt.sh
+      - name: The Flatpak repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HALTIA_GPG_PRIVKEY: ${{ secrets.HALTIA_GPG_PRIVKEY }}
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" site cache
+          sh build-flatpak.sh
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
