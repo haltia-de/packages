@@ -1,0 +1,24 @@
+# Maintainer: Mikhail Nevskiy <rensomail@gmail.com>
+# The Haltia package repository for apk: its signing key under the
+# organization's name and the repository line (apk reads
+# /etc/apk/repositories.d). The key is the one the packages have been
+# signed with as trudenboy-b8k-6ad4bb12; only the file name is new.
+pkgname=haltia-keys
+pkgver=1.0.0
+pkgrel=0
+pkgdesc="Haltia package repository: signing key and repository line"
+url="https://github.com/haltia-de/packages"
+arch="noarch"
+license="GPL-2.0-only"
+options="!check"
+source="haltia-de-6ad4bb12.rsa.pub"
+
+package() {
+	install -Dm644 "$srcdir"/haltia-de-6ad4bb12.rsa.pub \
+		"$pkgdir"/etc/apk/keys/haltia-de-6ad4bb12.rsa.pub
+	install -d "$pkgdir"/etc/apk/repositories.d
+	echo "https://haltia-de.github.io/packages/alpine/v3.24" \
+		>"$pkgdir"/etc/apk/repositories.d/haltia.list
+}
+
+sha512sums="SKIP"

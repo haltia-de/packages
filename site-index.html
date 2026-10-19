@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haltia packages</title>
+<style>body{font:18px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#222;background:#fff}code,pre{background:#f3f3f3;border-radius:4px}pre{padding:.8rem;overflow-x:auto}@media (prefers-color-scheme:dark){body{color:#ddd;background:#181818}code,pre{background:#262626}}</style>
+</head><body>
+<h1>Haltia packages</h1>
+<p>Signed Alpine packages of <a href="https://github.com/haltia-de">Haltia</a>, a calm touch desktop.
+Alpine 3.24 and postmarketOS; armv7, aarch64, x86_64.</p>
+<pre>wget -O /etc/apk/keys/haltia-de-6ad4bb12.rsa.pub https://haltia-de.github.io/packages/haltia-de-6ad4bb12.rsa.pub
+echo https://haltia-de.github.io/packages/alpine/v3.24 &gt;&gt; /etc/apk/repositories
+apk update
+apk add haltia-desktop          # the shell and the programs
+apk add haltia-desktop-ru       # messenger, music, weather for Russian services</pre>
+<p>Спокойная сенсорная среда, которая о вас заботится. Исходники и issues — <a href="https://github.com/haltia-de">github.com/haltia-de</a>.</p>
+</body></html>
