@@ -17,6 +17,15 @@ apk update && apk add haltia-desktop haltia-desktop-ru
   Gismeteo).
 - `haltia-keys`: the signing key under the name `haltia-de-6ad4bb12` and
   `/etc/apk/repositories.d/haltia.list`.
+- `postmarketos-ui-haltia`: Haltia as a postmarketOS user interface; greetd
+  logs the first user straight into Haltia (`haltia-greetd-config` writes
+  `/etc/greetd/haltia.toml` at every start of greetd), agreety after a
+  logout.
+
+Packages are built for armv7, aarch64 and x86_64. A release of a package
+repository carries the foreign architectures' files as `name.<arch>.apk`;
+this repository files each under the plain name apk asks for, in its
+architecture's folder.
 
 Both key files hold the same key. The index is signed under both names, so
 either one trusts it, and apk checks each package against the index's hash.
