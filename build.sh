@@ -86,7 +86,11 @@ for f in "$CACHE"/*.apk; do
 		armv7|aarch64|x86_64) targets=$arch ;;
 		*) echo "skip $f: arch '$arch'" >&2; continue ;;
 	esac
-	for a in $targets; do cp "$f" "$SITE/alpine/$ALPINE/$a/"; done
+	# Under the plain name apk asks for (a release names the foreign
+	# architectures' files name.<arch>.apk).
+	name=$(gzip -dc "$f" | tar -xOif - .PKGINFO 2>/dev/null | sed -n 's/^pkgname = //p' | head -1)
+	ver=$(gzip -dc "$f" | tar -xOif - .PKGINFO 2>/dev/null | sed -n 's/^pkgver = //p' | head -1)
+	for a in $targets; do cp "$f" "$SITE/alpine/$ALPINE/$a/$name-$ver.apk"; done
 done
 for a in $ARCHES; do
 	( cd "$SITE/alpine/$ALPINE/$a"
