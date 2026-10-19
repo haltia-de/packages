@@ -1,9 +1,8 @@
 # Maintainer: Mikhail Nevskiy <rensomail@gmail.com>
 # The Haltia desktop: the shell, its library and the programs every user
-# gets (ADR 0004). Until the rename window the packages keep their b8k-
-# names; the haltia- packages will provide them.
+# gets (ADR 0004): the haltia- packages (the b8k- names before 2.0.0).
 pkgname=haltia-desktop
-pkgver=1.0.0
+pkgver=2.0.0
 pkgrel=0
 pkgdesc="Haltia, a calm touch desktop: shell and programs"
 url="https://github.com/haltia-de/packages"
@@ -11,15 +10,15 @@ arch="noarch"
 license="GPL-2.0-only"
 depends="
 	haltia-keys
-	b8k-shell
-	py3-b8k-compat
-	b8k-files
-	b8k-text
-	b8k-calendar
-	b8k-video
-	b8k-news
-	b8k-paint
-	b8k-firefox
+	haltia-shell
+	py3-haltia-kit
+	haltia-files
+	haltia-text
+	haltia-calendar
+	haltia-video
+	haltia-news
+	haltia-paint
+	haltia-firefox
 	"
 options="!check"
 

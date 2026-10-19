@@ -1,7 +1,7 @@
 # Maintainer: Mikhail Nevskiy <rensomail@gmail.com>
 # The Haltia programs for Russian services: MAX, Yandex Music, Gismeteo.
 pkgname=haltia-desktop-ru
-pkgver=1.0.0
+pkgver=2.0.0
 pkgrel=0
 pkgdesc="Haltia programs for Russian services: messenger, music, weather"
 url="https://github.com/haltia-de/packages"
@@ -9,9 +9,9 @@ arch="noarch"
 license="GPL-2.0-only"
 depends="
 	haltia-desktop
-	b8k-max
-	b8k-music
-	b8k-weather
+	haltia-messenger
+	haltia-music
+	haltia-weather
 	"
 options="!check"
 
