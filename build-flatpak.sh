@@ -15,7 +15,7 @@ URL=https://haltia-de.github.io/packages/flatpak
 OUT=${OUT:-$PWD/site/flatpak}
 CACHE=${CACHE:-$PWD/cache/flatpak}
 
-command -v flatpak >/dev/null || { sudo apt-get -qq update && sudo apt-get -qq install -y flatpak >/dev/null; }
+command -v flatpak >/dev/null && command -v ostree >/dev/null || { sudo apt-get -qq update && sudo apt-get -qq install -y flatpak ostree >/dev/null; }
 export GNUPGHOME=$(mktemp -d)
 printf '%s\n' "${HALTIA_GPG_PRIVKEY:?the signing key}" | gpg --batch --quiet --import
 KEY=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
@@ -30,15 +30,31 @@ mkdir -p "$CACHE"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 ostree init --mode=archive-z2 --repo="$OUT/repo"
-for repo in $(api "orgs/$ORG/repos?per_page=100" | jq -r '.[] | select(.archived | not) | .name'); do
+# Only the repositories of publishers.conf, and only a bundle whose one
+# ref is that repository's own app: it is imported into a scratch
+# repository first and checked there.
+grep -v '^#' publishers.conf | while read -r repo _debs app; do
+	[ -n "$repo" ] && [ "$app" != - ] || continue
 	# The newest release that has a bundle.
-	u=$(api "repos/$ORG/$repo/releases?per_page=30" |
-		jq -r '[.[] | select(.draft | not) | select(any(.assets[]; .name | endswith(".flatpak")))][0].assets[]? | select(.name | endswith(".flatpak")) | .browser_download_url' | head -1)
-	[ -n "$u" ] || continue
+	line=$(api "repos/$ORG/$repo/releases?per_page=30" |
+		jq -r '[.[] | select(.draft | not) | select(any(.assets[]; .name | endswith(".flatpak")))][0].assets[]? | select(.name | endswith(".flatpak")) | .browser_download_url + " " + (.digest // "" | ltrimstr("sha256:"))' | head -1)
+	[ -n "$line" ] || continue
+	u=${line% *}
+	digest=${line##* }
 	f=$CACHE/${u##*/}
 	[ -s "$f" ] || curl -fsSL -o "$f" "$u"
-	app=${f##*/}
-	app=${app%%-[0-9]*}
+	if [ -z "$digest" ] || [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$digest" ]; then
+		echo "skip ${u##*/}: not the release's file"; rm -f "$f"; continue
+	fi
+	scratch=$(mktemp -d)
+	ostree init --mode=archive-z2 --repo="$scratch"
+	flatpak build-import-bundle --no-update-summary "$scratch" "$f" >/dev/null
+	refs=$(ostree refs --repo="$scratch" | grep -v '^appstream' | sort)
+	want=$(printf 'app/%s/x86_64/master' "$app")
+	if [ "$refs" != "$want" ]; then
+		echo "skip ${u##*/}: carries $(echo $refs), not $want"; rm -rf "$scratch"; continue
+	fi
+	rm -rf "$scratch"
 	echo "$repo: $app from ${u##*/}"
 	flatpak build-import-bundle --gpg-sign="$KEY" --gpg-homedir="$GNUPGHOME" "$OUT/repo" "$f"
 	cat >"$OUT/$app.flatpakref" <<REF

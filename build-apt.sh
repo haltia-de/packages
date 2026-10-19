@@ -30,16 +30,28 @@ api() {
 }
 
 mkdir -p "$CACHE"
-rm -rf "$APT"
-for repo in $(api "orgs/$ORG/repos?per_page=100" | jq -r '.[] | select(.archived | not) | .name'); do
+rm -rf "$APT" /tmp/allowed
+mkdir -p /tmp/allowed
+# Only the repositories of publishers.conf, only their own package names,
+# and only files whose content is the release's (the asset's digest).
+grep -v '^#' /src/publishers.conf | while read -r repo debs _app; do
+	[ -n "$repo" ] || continue
 	page=1
 	while :; do
-		urls=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page" |
-			jq -r '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".deb")) | .browser_download_url')
-		[ -n "$urls" ] || break
-		for u in $urls; do
+		assets=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page" |
+			jq -r '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".deb")) | select(.name | startswith("SHA256SUMS") | not) | .browser_download_url + " " + (.digest // "" | ltrimstr("sha256:"))')
+		[ -n "$assets" ] || break
+		echo "$assets" | while read -r u digest; do
 			f=$CACHE/${u##*/}
 			[ -s "$f" ] || curl -fsSL -o "$f" "$u"
+			if [ -z "$digest" ] || [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$digest" ]; then
+				echo "skip ${u##*/}: not the release's file"; rm -f "$f"; continue
+			fi
+			pkg=$(dpkg-deb -f "$f" Package)
+			case ",$debs," in
+				*",$pkg,"*) ln -sf "$f" /tmp/allowed/ ;;
+				*) echo "skip ${u##*/}: $repo may not publish $pkg" ;;
+			esac
 		done
 		page=$((page + 1))
 	done
@@ -48,7 +60,7 @@ done
 for s in $SUITES; do
 	pool=$APT/pool/main/$s
 	mkdir -p "$pool"
-	for f in "$CACHE"/*."$s".deb; do
+	for f in /tmp/allowed/*."$s".deb; do
 		[ -e "$f" ] || continue
 		b=${f##*/}
 		case $b in *-dbgsym_*) continue ;; esac	# debug symbols: not for this archive
