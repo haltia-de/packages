@@ -51,6 +51,7 @@ for s in $SUITES; do
 	for f in "$CACHE"/*."$s".deb; do
 		[ -e "$f" ] || continue
 		b=${f##*/}
+		case $b in *-dbgsym_*) continue ;; esac	# debug symbols: not for this archive
 		cp "$f" "$pool/${b%.$s.deb}.deb"	# back to the standard name
 	done
 	for a in $ARCHES; do
