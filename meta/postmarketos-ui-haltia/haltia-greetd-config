@@ -1,0 +1,25 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0
+# Write /etc/greetd/haltia.toml for postmarketos-ui-haltia: greetd logs the
+# first ordinary user (uid 10000, postmarketOS's, else the first from 1000
+# with a login shell) straight into Haltia; after a logout agreety, greetd's
+# small text greeter, asks for a name. Run at every start of greetd (from
+# /etc/conf.d/greetd), so a user made after the package still gets it.
+set -eu
+out=${1:-/etc/greetd/haltia.toml}
+user=$(awk -F: '$3 == 10000 { print $1; exit }' /etc/passwd)
+[ -n "$user" ] || user=$(awk -F: '$3 >= 1000 && $3 < 60000 && $7 !~ /(nologin|false)$/ { print $1; exit }' /etc/passwd)
+{
+	echo "# Written by haltia-greetd-config at every start of greetd."
+	echo "[terminal]"
+	echo "vt = 1"
+	if [ -n "$user" ]; then
+		echo "[initial_session]"
+		echo "command = \"/usr/bin/haltia-wayland-session\""
+		echo "user = \"$user\""
+	fi
+	echo "[default_session]"
+	echo "command = \"agreety --cmd /usr/bin/haltia-wayland-session\""
+	echo "user = \"greetd\""
+} >"$out.new"
+mv "$out.new" "$out"

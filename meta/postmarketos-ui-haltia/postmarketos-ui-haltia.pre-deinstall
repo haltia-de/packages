@@ -1,0 +1,5 @@
+#!/bin/sh
+c=/etc/conf.d/greetd
+[ -f "$c" ] && sed -i '/# postmarketos-ui-haltia:/,/haltia-greetd-config/d' "$c"
+rm -f /etc/greetd/haltia.toml
+exit 0

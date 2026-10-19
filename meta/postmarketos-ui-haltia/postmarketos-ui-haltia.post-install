@@ -1,3 +1,14 @@
 #!/bin/sh
-tinydm-set-session -f -s /usr/share/wayland-sessions/haltia.desktop
+# greetd reads our config, written afresh at each of its starts.
+c=/etc/conf.d/greetd
+if ! grep -q 'haltia-greetd-config' "$c" 2>/dev/null; then
+	cat >>"$c" <<'EOT'
+
+# postmarketos-ui-haltia: autologin into Haltia (removed with the package).
+cfgfile=/etc/greetd/haltia.toml
+/usr/libexec/haltia/haltia-greetd-config "$cfgfile" || true
+EOT
+fi
+/usr/libexec/haltia/haltia-greetd-config /etc/greetd/haltia.toml || true
+rc-update add greetd default >/dev/null 2>&1 || true
 exit 0

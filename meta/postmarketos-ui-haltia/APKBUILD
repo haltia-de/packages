@@ -1,18 +1,22 @@
 # Maintainer: Mikhail Nevskiy <rensomail@gmail.com>
 # Haltia as a postmarketOS user interface (ADR 0004): pmbootstrap and the
-# pmOS installer pick a UI by this name. Haltia starts through tinydm with
-# the shell's Wayland session (/usr/share/wayland-sessions/haltia.desktop).
+# pmOS installer pick a UI by this name. greetd logs the first user straight
+# into Haltia (the shell's haltia-wayland-session); after a logout, agreety
+# asks for a name. No phrog: it is Phosh's GTK 4 greeter.
 pkgname=postmarketos-ui-haltia
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=0
 pkgdesc="Haltia, a calm touch desktop (postmarketOS user interface)"
 url="https://github.com/haltia-de"
 arch="noarch"
 license="GPL-2.0-only"
-depends="haltia-desktop postmarketos-base-ui tinydm"
-install="$pkgname.post-install $pkgname.post-upgrade"
+depends="haltia-desktop postmarketos-base-ui greetd greetd-openrc greetd-agreety"
+install="$pkgname.post-install $pkgname.post-upgrade $pkgname.pre-deinstall"
 options="!check"
+source="haltia-greetd-config"
 
 package() {
-	mkdir -p "$pkgdir"
+	install -Dm755 "$srcdir"/haltia-greetd-config "$pkgdir"/usr/libexec/haltia/haltia-greetd-config
 }
+
+sha512sums="SKIP"
