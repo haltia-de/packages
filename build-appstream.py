@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import xml.etree.ElementTree as ET
+import xml.parsers.expat as xml_parsers
 
 
 def package(path):
@@ -38,6 +39,18 @@ def package(path):
             elif member.name.startswith("usr/share/metainfo/") and member.name.endswith(".xml"):
                 metas.append(tar.extractfile(member).read())
     return name, version, metas
+
+
+def parse_xml(data):
+    """A metainfo, refused when it declares a document type or an entity
+    (expat looks first, in whatever encoding it is)."""
+    def refuse(*_args):
+        raise ET.ParseError("no DTDs or entities")
+    scan = xml_parsers.ParserCreate()
+    scan.StartDoctypeDeclHandler = refuse
+    scan.EntityDeclHandler = refuse
+    scan.Parse(data, True)
+    return ET.fromstring(data)
 
 
 def compare(a, b):
@@ -63,11 +76,9 @@ def main():
     catalog = ET.Element("components", version="1.0", origin="haltia")
     for name in sorted(newest):
         for xml in newest[name][1]:
-            if b"<!DOCTYPE" in xml or b"<!ENTITY" in xml:
-                continue
             try:
-                comp = ET.fromstring(xml)
-            except ET.ParseError as exc:
+                comp = parse_xml(xml)
+            except (ET.ParseError, xml_parsers.ExpatError) as exc:
                 sys.stderr.write("skip %s: %s\n" % (name, exc))
                 continue
             if comp.tag != "component":
