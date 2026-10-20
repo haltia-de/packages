@@ -6,8 +6,10 @@
 # Every .apk of every release in the organization's repositories (old
 # versions stay, so pinned versions and downgrades keep working), plus the
 # meta packages of meta/, sorted by architecture (noarch into each), indexed
-# and signed. Output: /src/site, served by GitHub Pages as
+# and signed, and the AppStream catalog of their metainfo
+# (build-appstream.py). Output: /src/site, served by GitHub Pages as
 #   https://haltia-de.github.io/packages/alpine/v3.24/<arch>/
+#   https://haltia-de.github.io/packages/alpine/v3.24/appstream.xml.gz
 set -eu
 ORG=${ORG:-haltia-de}
 ALPINE=v3.24
@@ -17,7 +19,7 @@ NEWKEY=haltia-de-6ad4bb12	# the same key under the organization's name
 SITE=/src/site
 CACHE=/src/cache
 
-apk add -q --no-cache alpine-sdk curl jq tar
+apk add -q --no-cache alpine-sdk curl jq tar python3
 mkdir -p /root/.abuild "$CACHE" /tmp/meta
 printf '%s\n' "${B8K_APK_PRIVKEY:?the signing key}" >/root/.abuild/$KEYNAME.rsa
 chmod 600 /root/.abuild/$KEYNAME.rsa
@@ -100,5 +102,8 @@ for a in $ARCHES; do
 	  sign_both APKINDEX.tar.gz
 	  echo "$a: $(ls ./*.apk | wc -l) packages" )
 done
+# What is new in each version, for haltia-update and software centres: the
+# AppStream catalog of the newest packages, next to the indexes.
+python3 /src/build-appstream.py "$CACHE" "$SITE/alpine/$ALPINE/appstream.xml.gz"
 cp /src/keys/*.rsa.pub "$SITE/"
 cp /src/site-index.html "$SITE/index.html"
