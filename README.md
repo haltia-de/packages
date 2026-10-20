@@ -46,7 +46,7 @@ the apt and Flatpak builds, on a push, by hand and every 30 minutes.
 ## apt and Flatpak
 
 `build-apt.sh` (inside `debian:trixie`) files the `.deb` files of the
-releases into `apt/pool/main/<suite>` for `noble` and `trixie`, indexes them
+releases into `apt/pool/main/<suite>` for `noble`, `resolute` and `trixie`, indexes them
 with `apt-ftparchive` for amd64 and arm64 (arm64 gets the `all` packages)
 and signs `InRelease` and `Release.gpg`. `build-flatpak.sh` imports each
 program's newest bundle into an OSTree repository at `flatpak/repo` and

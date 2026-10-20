@@ -6,13 +6,13 @@
 #     debian:trixie sh /src/build-apt.sh
 # Every .deb of every release in the organization's repositories (named
 # name_version_arch.<codename>.deb by haltia-de/ci's deb.yml), per suite:
-# Ubuntu 24.04 noble and Debian 13 trixie, component main, amd64 and arm64
+# Ubuntu 24.04 noble, Ubuntu 26.04 resolute and Debian 13 trixie, component main, amd64 and arm64
 # (arm64 gets the Architecture: all packages). Indexed by apt-ftparchive,
 # signed (InRelease, Release.gpg). Output: /src/site/apt, served as
 #   deb [signed-by=/usr/share/keyrings/haltia-archive-keyring.gpg] https://haltia-de.github.io/packages/apt <suite> main
 set -eu
 ORG=${ORG:-haltia-de}
-SUITES="noble trixie"
+SUITES="noble resolute trixie"
 ARCHES="amd64 arm64"
 APT=/src/site/apt
 CACHE=/src/cache/deb

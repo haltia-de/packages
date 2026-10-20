@@ -13,7 +13,7 @@ apk update
 apk add haltia-desktop          # the shell and the programs
 apk add haltia-desktop-ru       # messenger, music, weather for Russian services</pre>
 <h2>Debian and Ubuntu</h2>
-<p>Ubuntu 24.04 noble (and elementary OS 8, Linux Mint 22) or Debian 13 trixie: Погода, Новости, Раскраска, Музыка, Сообщения, Видео.</p>
+<p>Ubuntu 24.04 noble (and elementary OS 8, Linux Mint 22), Ubuntu 26.04 resolute or Debian 13 trixie: Погода, Новости, Раскраска, Музыка, Сообщения, Видео.</p>
 <pre>sudo curl -fsSLo /usr/share/keyrings/haltia-archive-keyring.gpg https://haltia-de.github.io/packages/apt/haltia-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/haltia-archive-keyring.gpg] https://haltia-de.github.io/packages/apt $(. /etc/os-release; echo $VERSION_CODENAME) main" | sudo tee /etc/apt/sources.list.d/haltia.list
 sudo apt update
