@@ -3,7 +3,7 @@
 # Build the Haltia Flatpak repository (docs/plans/desktop-packages.md in
 # haltia-de/haltia) on the Ubuntu runner, after build.sh:
 #   GH_TOKEN=… HALTIA_GPG_PRIVKEY=… sh build-flatpak.sh
-# The bundle of each program's newest release (made by haltia-de/ci's
+# The newest valid bundle of each program (made by haltia-de/ci's
 # flatpak.yml) is imported into an OSTree repository and signed. The
 # commits come from the bundles, so a rebuild without a new release gives
 # the same commits and clients see no update. Output: site/flatpak, with
@@ -35,28 +35,44 @@ ostree init --mode=archive-z2 --repo="$OUT/repo"
 # repository first and checked there.
 grep -v '^#' publishers.conf | while read -r repo _debs app; do
 	[ -n "$repo" ] && [ "$app" != - ] || continue
-	# The newest release that has a bundle.
-	line=$(api "repos/$ORG/$repo/releases?per_page=30" |
-		jq -r '[.[] | select(.draft | not) | select(any(.assets[]; .name | endswith(".flatpak")))][0].assets[]? | select(.name | endswith(".flatpak")) | .browser_download_url + " " + (.digest // "" | ltrimstr("sha256:"))' | head -1)
-	[ -n "$line" ] || continue
-	u=${line% *}
-	digest=${line##* }
-	f=$CACHE/${u##*/}
-	[ -s "$f" ] || curl -fsSL -o "$f" "$u"
-	if [ -z "$digest" ] || [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$digest" ]; then
-		echo "skip ${u##*/}: not the release's file"; rm -f "$f"; continue
-	fi
-	scratch=$(mktemp -d)
-	ostree init --mode=archive-z2 --repo="$scratch"
-	flatpak build-import-bundle --no-update-summary "$scratch" "$f" >/dev/null
-	refs=$(ostree refs --repo="$scratch" | grep -v '^appstream' | sort)
-	want=$(printf 'app/%s/x86_64/master' "$app")
-	if [ "$refs" != "$want" ]; then
-		echo "skip ${u##*/}: carries $(echo $refs), not $want"; rm -rf "$scratch"; continue
-	fi
-	rm -rf "$scratch"
-	echo "$repo: $app from ${u##*/}"
-	flatpak build-import-bundle --gpg-sign="$KEY" --gpg-homedir="$GNUPGHOME" "$OUT/repo" "$f"
+	# Try bundles newest-first until one passes the digest and ref checks.
+	page=1
+	found=false
+	while :; do
+		releases=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page")
+		[ "$(printf '%s\n' "$releases" | jq 'length')" -gt 0 ] || break
+		assets=$(printf '%s\n' "$releases" |
+			jq -r '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".flatpak")) | .browser_download_url + " " + (.digest // "" | ltrimstr("sha256:"))')
+		while read -r u digest; do
+			[ -n "$u" ] || continue
+			f=$CACHE/${u##*/}
+			if [ -s "$f" ] && [ -n "$digest" ] && [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$digest" ]; then
+				rm -f "$f"
+			fi
+			[ -s "$f" ] || curl -fsSL -o "$f" "$u"
+			if [ -z "$digest" ] || [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$digest" ]; then
+				echo "skip ${u##*/}: not the release's file"; rm -f "$f"; continue
+			fi
+			scratch=$(mktemp -d)
+			ostree init --mode=archive-z2 --repo="$scratch"
+			flatpak build-import-bundle --no-update-summary "$scratch" "$f" >/dev/null
+			refs=$(ostree refs --repo="$scratch" | grep -v '^appstream' | sort)
+			want=$(printf 'app/%s/x86_64/master' "$app")
+			if [ "$refs" != "$want" ]; then
+				echo "skip ${u##*/}: carries $(echo $refs), not $want"; rm -rf "$scratch"; continue
+			fi
+			rm -rf "$scratch"
+			echo "$repo: $app from ${u##*/}"
+			flatpak build-import-bundle --gpg-sign="$KEY" --gpg-homedir="$GNUPGHOME" "$OUT/repo" "$f"
+			found=true
+			break
+		done <<ASSETS
+$assets
+ASSETS
+		[ "$found" = false ] || break
+		page=$((page + 1))
+	done
+	[ "$found" = true ] || continue
 	cat >"$OUT/$app.flatpakref" <<REF
 [Flatpak Ref]
 Name=$app
