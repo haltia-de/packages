@@ -1,9 +1,11 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0
 # Build the Haltia apt repository (docs/plans/desktop-packages.md in
-# haltia-de/haltia), inside debian:trixie, after build.sh:
+# haltia-de/haltia), after build.sh, inside the image haltia-apt that
+# publish.yml builds (debian:trixie with the tools; nothing is installed
+# here, where the signing key is):
 #   docker run --rm -v "$PWD:/src" -e GH_TOKEN -e HALTIA_GPG_PRIVKEY \
-#     debian:trixie sh /src/build-apt.sh
+#     haltia-apt sh /src/build-apt.sh
 # Every .deb of every release in the organization's repositories (named
 # name_version_arch.<codename>.deb by haltia-de/ci's deb.yml), per suite:
 # Ubuntu 24.04 noble, Ubuntu 26.04 resolute and Debian 13 trixie, component main, amd64 and arm64
@@ -22,10 +24,11 @@ KEEP=3	# versions of each package in the index
 # The devices' packages.lock (name repository version file sha256).
 LOCKS="haltia-de/device-lenovo-b8000h/main/linux-port/apps/packages.lock"
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get -qq update
-apt-get -qq install -y --no-install-recommends apt-utils ca-certificates curl gnupg jq python3-minimal >/dev/null
-export GNUPGHOME=$(mktemp -d)
+for c in apt-ftparchive curl gpg jq python3; do
+	command -v "$c" >/dev/null || { echo "build-apt.sh: no $c, run it in the image of publish.yml" >&2; exit 1; }
+done
+GNUPGHOME=$(mktemp -d)
+export GNUPGHOME
 printf '%s\n' "${HALTIA_GPG_PRIVKEY:?the signing key}" | gpg --batch --quiet --import
 KEY=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
 

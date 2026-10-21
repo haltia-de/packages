@@ -21,21 +21,38 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0 # the meta packages' build date is their last commit
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: cache
           key: apk-cache-${{ github.run_id }}
           restore-keys: apk-cache-
+      # Everything the builds need is installed here, from base images
+      # pinned by digest and without a key; the steps with a signing key
+      # install nothing.
+      - name: The build tools
+        run: |
+          docker build -q -t haltia-apk - <<'EOF'
+          FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+          RUN apk add -q --no-cache alpine-sdk curl git jq tar python3
+          EOF
+          docker build -q -t haltia-apt - <<'EOF'
+          FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5
+          RUN apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --no-install-recommends apt-utils ca-certificates curl gnupg jq python3-minimal >/dev/null && rm -rf /var/lib/apt/lists/*
+          EOF
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y flatpak ostree >/dev/null
       - name: Build the repository
         env:
           GH_TOKEN: ${{ github.token }}
           B8K_APK_PRIVKEY: ${{ secrets.B8K_APK_PRIVKEY }}
-        run: docker run --rm -v "$PWD:/src" -e GH_TOKEN -e B8K_APK_PRIVKEY alpine:3.24 sh /src/build.sh
+        run: docker run --rm -v "$PWD:/src" -e GH_TOKEN -e B8K_APK_PRIVKEY haltia-apk sh /src/build.sh
       - name: The apt repository
         env:
           GH_TOKEN: ${{ github.token }}
           HALTIA_GPG_PRIVKEY: ${{ secrets.HALTIA_GPG_PRIVKEY }}
-        run: docker run --rm -v "$PWD:/src" -e GH_TOKEN -e HALTIA_GPG_PRIVKEY debian:trixie sh /src/build-apt.sh
+        run: docker run --rm -v "$PWD:/src" -e GH_TOKEN -e HALTIA_GPG_PRIVKEY haltia-apt sh /src/build-apt.sh
       - name: The Flatpak repository
         env:
           GH_TOKEN: ${{ github.token }}

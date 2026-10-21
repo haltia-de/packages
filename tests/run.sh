@@ -5,7 +5,9 @@
 # publishers.conf is taken from its repository, a foreign name, an unlisted
 # repository, a wrong digest and a missing digest are left out, and the
 # store keeps only the files taken. The build scripts call the scripts of
-# this repository with the arguments their usage names.
+# this repository with the arguments their usage names. The build scripts
+# parse, install nothing where a signing key is, and build.sh checks the
+# pinned versions and apk verify before it signs.
 set -eu
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)
@@ -89,3 +91,41 @@ grep -h '^[[:space:]]*python3 /src/[a-z-]*\.py' build.sh build-apt.sh | while re
 	[ "$got" -eq "$want" ] || fail "$call: $got arguments, not $want"
 	echo "ok: $script, $want arguments"
 done
+
+# The build scripts parse.
+for s in build.sh build-apt.sh build-flatpak.sh; do
+	sh -n "$s" || fail "$s does not parse"
+done
+echo "ok: the build scripts parse"
+
+# The signing keys go only where nothing is installed: the build scripts
+# install nothing, the images of publish.yml are pinned by digest, and no
+# step that gets a secret installs anything.
+if grep -nE 'apk add|apt-get|pip install' build.sh build-apt.sh build-flatpak.sh; then
+	fail "a build script installs packages"
+fi
+grep -E '^[[:space:]]*FROM ' .github/workflows/publish.yml >"$tmp/from" ||
+	fail "publish.yml builds no image"
+if grep -vE 'FROM [a-z0-9.:/-]+@sha256:[0-9a-f]{64}$' "$tmp/from"; then
+	fail "an image of publish.yml is not pinned by digest"
+fi
+if grep -nE 'docker run .* (alpine|debian|ubuntu)[:@ ]' .github/workflows/publish.yml; then
+	fail "publish.yml runs a base image instead of its own"
+fi
+awk '/^      - /{ n++ } { print n, $0 }' .github/workflows/publish.yml >"$tmp/steps"
+for n in $(grep 'secrets\.' "$tmp/steps" | cut -d' ' -f1 | sort -u); do
+	if grep "^$n " "$tmp/steps" | grep -E 'apk add|apt-get|docker build|pip install'; then
+		fail "publish.yml: a step with a secret installs packages"
+	fi
+done
+echo "ok: nothing is installed where a key is"
+
+# build.sh checks the pinned versions and runs apk verify before it signs
+# an index, and builds the meta packages reproducibly.
+signs=$(grep -n 'sign_both APKINDEX' build.sh | cut -d: -f1)
+for c in 'pinned $p is not in the repository' 'apk verify "$f"' '[ "$bad" = 0 ] || exit 1'; do
+	at=$(grep -nF "$c" build.sh | head -1 | cut -d: -f1)
+	[ -n "$at" ] && [ "$at" -lt "$signs" ] || fail "build.sh: no '$c' before signing"
+done
+grep -qF 'SOURCE_DATE_EPOCH=$epoch abuild' build.sh || fail "build.sh: the meta packages are not reproducible"
+echo "ok: build.sh checks before it signs"

@@ -13,16 +13,19 @@ ADR 0004 and `docs/plans/desktop-packages.md`.
 
 ## Where things are
 
-- `build.sh`: the apk repository, run inside `alpine:3.24`; downloads every
-  `.apk` of every release in the organization, builds `meta/`, sorts by
-  architecture (armv7, aarch64, x86_64), indexes and signs under both key
-  names, writes `site/`.
+- `build.sh`: the apk repository, run inside `alpine:3.24` (the image
+  `haltia-apk` of `publish.yml`, pinned by digest, with the tools: the
+  build scripts install nothing where a key is); downloads every
+  `.apk` of every release in the organization, builds `meta/` (reused from
+  `cache/meta` while a folder is unchanged), sorts by architecture (armv7,
+  aarch64, x86_64), fails when a pinned version is missing or a file fails
+  `apk verify`, indexes and signs under both key names, writes `site/`.
 - `keep-versions.py`: which files `build.sh` and `build-apt.sh` leave out:
   all but the three newest versions of each package, except the versions
   the devices' `packages.lock` pin (the `LOCKS` of both scripts).
 - `build-appstream.py`: the AppStream catalog `appstream.xml.gz` next to the
   apk index, called by `build.sh`.
-- `build-apt.sh`: the apt repository, run inside `debian:trixie` after
+- `build-apt.sh`: the apt repository, run inside `debian:trixie` (`haltia-apt`) after
   `build.sh`; suites `noble`, `resolute`, `trixie`, amd64 and arm64.
 - `build-flatpak.sh`: the OSTree repository at `site/flatpak/repo` with
   `haltia.flatpakrepo` and one `.flatpakref` per program.
