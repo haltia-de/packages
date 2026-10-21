@@ -38,11 +38,16 @@ grep -v '^#' /src/publishers.conf | while read -r repo debs _app; do
 	[ -n "$repo" ] || continue
 	page=1
 	while :; do
-		assets=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page" |
+		releases=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page")
+		[ "$(printf '%s\n' "$releases" | jq 'length')" -gt 0 ] || break
+		assets=$(printf '%s\n' "$releases" |
 			jq -r '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".deb")) | select(.name | startswith("SHA256SUMS") | not) | .browser_download_url + " " + (.digest // "" | ltrimstr("sha256:"))')
-		[ -n "$assets" ] || break
 		echo "$assets" | while read -r u digest; do
+			[ -n "$u" ] || continue
 			f=$CACHE/${u##*/}
+			if [ -s "$f" ] && [ -n "$digest" ] && [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$digest" ]; then
+				rm -f "$f"
+			fi
 			[ -s "$f" ] || curl -fsSL -o "$f" "$u"
 			if [ -z "$digest" ] || [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$digest" ]; then
 				echo "skip ${u##*/}: not the release's file"; rm -f "$f"; continue

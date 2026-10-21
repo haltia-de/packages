@@ -55,18 +55,26 @@ sign_both() {
 }
 
 # The released packages.
-for repo in $(api "orgs/$ORG/repos?per_page=100" | jq -r '.[] | select(.archived | not) | .name'); do
-	page=1
-	while :; do
-		urls=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page" |
-			jq -r '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".apk")) | .browser_download_url')
-		[ -n "$urls" ] || break
-		for u in $urls; do
-			f=$CACHE/${u##*/}
-			[ -s "$f" ] || curl -fsSL -o "$f" "$u"
+repo_page=1
+while :; do
+	repositories=$(api "orgs/$ORG/repos?per_page=100&page=$repo_page")
+	[ "$(printf '%s\n' "$repositories" | jq 'length')" -gt 0 ] || break
+	repos=$(printf '%s\n' "$repositories" | jq -r '.[] | select(.archived | not) | .name')
+	for repo in $repos; do
+		page=1
+		while :; do
+			releases=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page")
+			[ "$(printf '%s\n' "$releases" | jq 'length')" -gt 0 ] || break
+			urls=$(printf '%s\n' "$releases" |
+				jq -r '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".apk")) | .browser_download_url')
+			for u in $urls; do
+				f=$CACHE/${u##*/}
+				[ -s "$f" ] || curl -fsSL -o "$f" "$u"
+			done
+			page=$((page + 1))
 		done
-		page=$((page + 1))
 	done
+	repo_page=$((repo_page + 1))
 done
 
 # The meta packages.
