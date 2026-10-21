@@ -43,6 +43,13 @@ jobs:
         run: |
           sudo chown -R "$(id -u):$(id -g)" site cache
           sh build-flatpak.sh
+      # Pages takes an artifact of at most 1 GB; the noarch apks are a copy
+      # in each architecture's folder, and links are uploaded as files.
+      - name: The size of the site
+        run: |
+          size=$(du -sbLl site | cut -f1)
+          echo "site: $((size / 1000000)) MB"
+          [ "$size" -le 950000000 ] || { echo "::error::the site is over 950 MB"; exit 1; }
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
