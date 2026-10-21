@@ -7,7 +7,9 @@
 # Every .deb of every release in the organization's repositories (named
 # name_version_arch.<codename>.deb by haltia-de/ci's deb.yml), per suite:
 # Ubuntu 24.04 noble, Ubuntu 26.04 resolute and Debian 13 trixie, component main, amd64 and arm64
-# (arm64 gets the Architecture: all packages). Indexed by apt-ftparchive,
+# (arm64 gets the Architecture: all packages), the three newest versions of
+# each package and every version a device's packages.lock pins
+# (keep-versions.py, as in build.sh). Indexed by apt-ftparchive,
 # signed (InRelease, Release.gpg). Output: /src/site/apt, served as
 #   deb [signed-by=/usr/share/keyrings/haltia-archive-keyring.gpg] https://haltia-de.github.io/packages/apt <suite> main
 set -eu
@@ -16,10 +18,13 @@ SUITES="noble resolute trixie"
 ARCHES="amd64 arm64"
 APT=/src/site/apt
 CACHE=/src/cache/deb
+KEEP=3	# versions of each package in the index
+# The devices' packages.lock (name repository version file sha256).
+LOCKS="haltia-de/device-lenovo-b8000h/main/linux-port/apps/packages.lock"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get -qq update
-apt-get -qq install -y --no-install-recommends apt-utils ca-certificates curl gnupg jq >/dev/null
+apt-get -qq install -y --no-install-recommends apt-utils ca-certificates curl gnupg jq python3-minimal >/dev/null
 export GNUPGHOME=$(mktemp -d)
 printf '%s\n' "${HALTIA_GPG_PRIVKEY:?the signing key}" | gpg --batch --quiet --import
 KEY=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
@@ -32,6 +37,13 @@ api() {
 mkdir -p "$CACHE"
 rm -rf "$APT" /tmp/allowed
 mkdir -p /tmp/allowed
+# The versions the devices pin, as "repository version".
+: >/tmp/pinned
+for l in $LOCKS; do
+	curl -fsSL -o /tmp/packages.lock "https://raw.githubusercontent.com/$l"
+	awk '!/^#/ && NF >= 3 { print $2, $3 }' /tmp/packages.lock >>/tmp/pinned
+done
+: >/tmp/pinned-debs
 # Only the repositories of publishers.conf, only their own package names,
 # and only files whose content is the release's (the asset's digest).
 grep -v '^#' /src/publishers.conf | while read -r repo debs _app; do
@@ -49,7 +61,13 @@ grep -v '^#' /src/publishers.conf | while read -r repo debs _app; do
 			fi
 			pkg=$(dpkg-deb -f "$f" Package)
 			case ",$debs," in
-				*",$pkg,"*) ln -sf "$f" /tmp/allowed/ ;;
+				*",$pkg,"*) ln -sf "$f" /tmp/allowed/
+					# Pinned: the version without epoch and Debian revision.
+					v=$(dpkg-deb -f "$f" Version)
+					v=${v#*:}
+					if grep -qxF "$ORG/$repo ${v%-*}" /tmp/pinned; then
+						echo "${u##*/}" >>/tmp/pinned-debs
+					fi ;;
 				*) echo "skip ${u##*/}: $repo may not publish $pkg" ;;
 			esac
 		done
@@ -60,12 +78,20 @@ done
 for s in $SUITES; do
 	pool=$APT/pool/main/$s
 	mkdir -p "$pool"
+	: >/tmp/debs
 	for f in /tmp/allowed/*."$s".deb; do
 		[ -e "$f" ] || continue
 		b=${f##*/}
 		case $b in *-dbgsym_*) continue ;; esac	# debug symbols: not for this archive
 		cp "$f" "$pool/${b%.$s.deb}.deb"	# back to the standard name
+		pinned=0
+		if grep -qxF "$b" /tmp/pinned-debs; then pinned=1; fi
+		echo "$(dpkg-deb -W --showformat='${Package}/${Architecture} ${Version}' "$f") $pinned $pool/${b%.$s.deb}.deb" >>/tmp/debs
 	done
+	# Older versions go from the pool, and so from the indexes made of it.
+	python3 /src/keep-versions.py deb "$KEEP" </tmp/debs >/tmp/old
+	echo "$s: older versions left out: $(wc -l </tmp/old) files"
+	xargs -r rm -f </tmp/old
 	for a in $ARCHES; do
 		d=$APT/dists/$s/main/binary-$a
 		mkdir -p "$d"

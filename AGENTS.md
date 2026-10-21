@@ -17,6 +17,9 @@ ADR 0004 and `docs/plans/desktop-packages.md`.
   `.apk` of every release in the organization, builds `meta/`, sorts by
   architecture (armv7, aarch64, x86_64), indexes and signs under both key
   names, writes `site/`.
+- `keep-versions.py`: which files `build.sh` and `build-apt.sh` leave out:
+  all but the three newest versions of each package, except the versions
+  the devices' `packages.lock` pin (the `LOCKS` of both scripts).
 - `build-appstream.py`: the AppStream catalog `appstream.xml.gz` next to the
   apk index, called by `build.sh`.
 - `build-apt.sh`: the apt repository, run inside `debian:trixie` after

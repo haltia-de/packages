@@ -37,8 +37,14 @@ Both key files hold the same key. The index is signed under both names, so
 either one trusts it, and apk checks each package against the index's hash.
 Packages released so far carry the signature `trudenboy-b8k-6ad4bb12`, the
 name installed tablets already trust. Signing switches to
-`haltia-de-6ad4bb12` once `haltia-keys` is in every image. Old
-versions stay in the index, so pinned versions and downgrades keep working.
+`haltia-de-6ad4bb12` once `haltia-keys` is in every image. The index
+keeps the three newest versions of each package and every version a
+device's `packages.lock` pins (today `linux-port/apps/packages.lock` of
+`haltia-de/device-lenovo-b8000h`, read at every build), so pinned versions
+and recent downgrades keep working; the apt repository does the same. A
+noarch package is a copy in each architecture's folder, since an
+`APKINDEX.tar.gz` names files only in its own folder; `publish.yml` prints
+the site's size and fails above 950 MB, under the 1 GB that Pages takes.
 
 `build.sh` does the work inside `alpine:3.24`; `publish.yml` runs it, then
 the apt and Flatpak builds, on a push, by hand and every 30 minutes.
