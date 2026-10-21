@@ -33,7 +33,7 @@ ostree init --mode=archive-z2 --repo="$OUT/repo"
 # Only the repositories of publishers.conf, and only a bundle whose one
 # ref is that repository's own app: it is imported into a scratch
 # repository first and checked there.
-grep -v '^#' publishers.conf | while read -r repo _debs app; do
+grep -v '^#' publishers.conf | while read -r repo _debs app _apks; do
 	[ -n "$repo" ] && [ "$app" != - ] || continue
 	# Try bundles newest-first until one passes the digest and ref checks.
 	page=1

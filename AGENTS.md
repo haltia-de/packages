@@ -26,10 +26,16 @@ ADR 0004 and `docs/plans/desktop-packages.md`.
   `build.sh`; suites `noble`, `resolute`, `trixie`, amd64 and arm64.
 - `build-flatpak.sh`: the OSTree repository at `site/flatpak/repo` with
   `haltia.flatpakrepo` and one `.flatpakref` per program.
-- `publishers.conf`: who may publish what into apt and Flatpak. One line per
-  repository of haltia-de: its allowed Debian package names (comma
-  separated) and its Flatpak app id (`-` for none). Anything else a release
-  carries is left out. A new program needs a line here.
+- `fetch-apks.py`: the released apks `build.sh` indexes: only names
+  `publishers.conf` allows for the releasing repository, only files that
+  match their asset's digest; the cache `cache/apk` keeps them by digest
+  and drops what no current release names.
+- `publishers.conf`: who may publish what into apt, Flatpak and apk. One
+  line per repository of haltia-de: its allowed Debian package names (comma
+  separated), its Flatpak app id and its allowed apk names (comma
+  separated; `-` for none). Anything else a release carries is left out. A
+  new program needs a line here.
+- `tests/run.sh`: offline tests (`fetch-apks.py` with a fake asset list).
 - `meta/`: the meta packages (`haltia-desktop`, `haltia-desktop-ru`,
   `haltia-keys`, `postmarketos-ui-haltia`), one `APKBUILD` each.
 - `keys/`: public keys only (apk keys under both names, the GPG key

@@ -3,8 +3,9 @@
 # Build the Haltia apk repository (ADR 0004, phase B), inside alpine:3.24:
 #   docker run --rm -v "$PWD:/src" -e GH_TOKEN -e B8K_APK_PRIVKEY \
 #     alpine:3.24 sh /src/build.sh
-# Every .apk of every release in the organization's repositories, plus the
-# meta packages of meta/, sorted by architecture (noarch into each), the
+# Every .apk of every release in the organization's repositories that
+# publishers.conf lets its repository publish and that matches its asset's
+# digest (fetch-apks.py), plus the meta packages of meta/, sorted by architecture (noarch into each), the
 # three newest versions of each package and every version a device's
 # packages.lock pins (keep-versions.py), indexed and signed, and the
 # AppStream catalog of their metainfo (build-appstream.py). Output:
@@ -18,14 +19,17 @@ ARCHES="armv7 aarch64 x86_64"
 KEYNAME=trudenboy-b8k-6ad4bb12	# what installed tablets already trust
 NEWKEY=haltia-de-6ad4bb12	# the same key under the organization's name
 SITE=/src/site
-CACHE=/src/cache
+STORE=/src/cache/apk	# the released files, by digest (fetch-apks.py)
+APKS=/tmp/apks.d	# what this build indexes: the released and meta packages
 KEEP=3	# versions of each package in the index
 # The devices' packages.lock (name repository version file sha256): the
 # versions their images pin stay installable.
 LOCKS="haltia-de/device-lenovo-b8000h/main/linux-port/apps/packages.lock"
 
 apk add -q --no-cache alpine-sdk curl jq tar python3
-mkdir -p /root/.abuild "$CACHE" /tmp/meta
+rm -rf "$APKS"
+rm -f /src/cache/*.apk	# the cache by file name of older builds
+mkdir -p /root/.abuild "$STORE" "$APKS" /tmp/meta
 printf '%s\n' "${B8K_APK_PRIVKEY:?the signing key}" >/root/.abuild/$KEYNAME.rsa
 chmod 600 /root/.abuild/$KEYNAME.rsa
 cp /root/.abuild/$KEYNAME.rsa /root/.abuild/$NEWKEY.rsa
@@ -59,7 +63,10 @@ sign_both() {
 	chmod 644 "$idx"
 }
 
-# The released packages.
+# The released packages: the current release assets of every repository,
+# taken by fetch-apks.py only when publishers.conf lets the repository
+# publish the package's name and the file matches the asset's digest.
+: >/tmp/assets
 repo_page=1
 while :; do
 	repositories=$(api "orgs/$ORG/repos?per_page=100&page=$repo_page")
@@ -70,18 +77,14 @@ while :; do
 		while :; do
 			releases=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page")
 			[ "$(printf '%s\n' "$releases" | jq 'length')" -gt 0 ] || break
-			urls=$(printf '%s\n' "$releases" |
-				jq -r '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".apk")) | .browser_download_url')
-			for u in $urls; do
-				f=$CACHE/${u##*/}
-				[ -s "$f" ] || curl -fsSL -o "$f" "$u"
-			done
+			printf '%s\n' "$releases" |
+				jq -r --arg repo "$repo" '.[] | select(.draft | not) | .assets[] | select(.name | endswith(".apk")) | $repo + " " + .browser_download_url + " " + (.digest // "" | ltrimstr("sha256:"))' >>/tmp/assets
 			page=$((page + 1))
 		done
 	done
 	repo_page=$((repo_page + 1))
 done
-
+python3 /src/fetch-apks.py /src/publishers.conf "$STORE" "$APKS" </tmp/assets
 # The versions the devices pin, under the plain name (a release names the
 # foreign architectures' files name.<arch>.apk).
 : >/tmp/pinned
@@ -99,13 +102,13 @@ for d in /src/meta/*/; do
 	cp -r "$d" "/tmp/meta/$n"
 	( cd "/tmp/meta/$n" && abuild -F checksum && abuild -F -d -P /tmp/metarepo )
 done
-find /tmp/metarepo -name '*.apk' -exec cp {} "$CACHE/" \;
+find /tmp/metarepo -name '*.apk' -exec cp {} "$APKS/" \;
 
 # Sort, index, sign.
 rm -rf "$SITE"
 : >/tmp/apks
 for a in $ARCHES; do mkdir -p "$SITE/alpine/$ALPINE/$a"; done
-for f in "$CACHE"/*.apk; do
+for f in "$APKS"/*.apk; do
 	arch=$(gzip -dc "$f" | tar -xOif - .PKGINFO 2>/dev/null | sed -n 's/^arch = //p' | head -1)
 	case $arch in
 		noarch) targets=$ARCHES ;;
@@ -139,6 +142,6 @@ for a in $ARCHES; do
 done
 # What is new in each version, for haltia-update and software centres: the
 # AppStream catalog of the newest packages, next to the indexes.
-python3 /src/build-appstream.py "$CACHE" "$SITE/alpine/$ALPINE/appstream.xml.gz"
+python3 /src/build-appstream.py "$APKS""$SITE/alpine/$ALPINE/appstream.xml.gz"
 cp /src/keys/*.rsa.pub "$SITE/"
 cp /src/site-index.html "$SITE/index.html"

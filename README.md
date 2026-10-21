@@ -76,6 +76,6 @@ Both are signed with the organization's GPG key "Haltia packages"
 `1346 1D3E 8077 2926 0DD4 A614 61FC D08B BFE7 462F`, valid until 2031; the
 private key is the organization secret `HALTIA_GPG_PRIVKEY`).
 `publishers.conf` says which repository may publish which Debian package
-names and which Flatpak app id; anything else a release carries is left
-out, and every file must match its release asset's sha256 digest. A new
-program needs a line there.
+names, which Flatpak app id and which apk package names; anything else a
+release carries is left out, and every file must match its release
+asset's sha256 digest. A new program needs a line there.
