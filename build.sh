@@ -142,6 +142,6 @@ for a in $ARCHES; do
 done
 # What is new in each version, for haltia-update and software centres: the
 # AppStream catalog of the newest packages, next to the indexes.
-python3 /src/build-appstream.py "$APKS""$SITE/alpine/$ALPINE/appstream.xml.gz"
+python3 /src/build-appstream.py "$APKS" "$SITE/alpine/$ALPINE/appstream.xml.gz"
 cp /src/keys/*.rsa.pub "$SITE/"
 cp /src/site-index.html "$SITE/index.html"

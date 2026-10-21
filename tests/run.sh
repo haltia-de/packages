@@ -4,7 +4,8 @@
 # fetch-apks.py with a fake asset list (file:// URLs): every apk name of
 # publishers.conf is taken from its repository, a foreign name, an unlisted
 # repository, a wrong digest and a missing digest are left out, and the
-# store keeps only the files taken.
+# store keeps only the files taken. The build scripts call the scripts of
+# this repository with the arguments their usage names.
 set -eu
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)
@@ -77,3 +78,14 @@ grep -qx "released: $left packages" "$tmp/log" || { cat "$tmp/log"; fail "second
 [ "$(ls -A "$tmp/store" | wc -l)" -eq "$left" ] || fail "second build: store has $(ls -A "$tmp/store" | wc -l) files, not $left"
 [ "$(sha256sum "$tmp/store/$victim.apk" | cut -d' ' -f1)" = "$victim" ] || fail "a changed cached file was kept"
 echo "ok: fetch-apks.py"
+
+# Every call of a script of this repository in the build scripts passes as
+# many arguments as the script's usage line names (two words run together
+# would pass one).
+grep -h '^[[:space:]]*python3 /src/[a-z-]*\.py' build.sh build-apt.sh | while read -r call; do
+	script=$(echo "$call" | sed 's|^python3 /src/\([a-z-]*\.py\).*|\1|')
+	want=$(sed -n '3s/^"""[^ ]* \([^:<]*\).*/\1/p' "$script" | wc -w)
+	got=$(sh -c "python3() { echo \$((\$# - 1)); }; ${call%%[<>]*}")
+	[ "$got" -eq "$want" ] || fail "$call: $got arguments, not $want"
+	echo "ok: $script, $want arguments"
+done
