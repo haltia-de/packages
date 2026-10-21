@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0
-# Build the Haltia Flatpak repository (docs/plan-desktop-packages.md in
-# haltia-de/device-lenovo-b8000h) on the Ubuntu runner, after build.sh:
+# Build the Haltia Flatpak repository (docs/plans/desktop-packages.md in
+# haltia-de/haltia) on the Ubuntu runner, after build.sh:
 #   GH_TOKEN=… HALTIA_GPG_PRIVKEY=… sh build-flatpak.sh
 # The bundle of each program's newest release (made by haltia-de/ci's
 # flatpak.yml) is imported into an OSTree repository and signed. The
