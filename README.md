@@ -7,7 +7,7 @@ for Ubuntu 24.04 and Debian 13, and Flatpak.
 ## apk
 
 The Haltia apk repository (ADR 0004 in
-[device-lenovo-b8000h](https://github.com/haltia-de/device-lenovo-b8000h)):
+[haltia-de/haltia](https://github.com/haltia-de/haltia/blob/main/docs/adr/0004-de-apart-from-device.md)):
 every released `.apk` of the organization's repositories plus the meta
 packages of `meta/`, indexed, signed and served by GitHub Pages at
 `https://haltia-de.github.io/packages/alpine/v3.24/<arch>/`.

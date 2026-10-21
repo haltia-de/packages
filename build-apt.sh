@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0
-# Build the Haltia apt repository (docs/plan-desktop-packages.md in
-# haltia-de/device-lenovo-b8000h), inside debian:trixie, after build.sh:
+# Build the Haltia apt repository (docs/plans/desktop-packages.md in
+# haltia-de/haltia), inside debian:trixie, after build.sh:
 #   docker run --rm -v "$PWD:/src" -e GH_TOKEN -e HALTIA_GPG_PRIVKEY \
 #     debian:trixie sh /src/build-apt.sh
 # Every .deb of every release in the organization's repositories (named
