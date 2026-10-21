@@ -46,8 +46,8 @@ done
 : >/tmp/pinned-debs
 # Only the repositories of publishers.conf, only their own package names,
 # and only files whose content is the release's (the asset's digest).
-grep -v '^#' /src/publishers.conf | while read -r repo debs _app; do
-	[ -n "$repo" ] || continue
+grep -v '^#' /src/publishers.conf | while read -r repo debs _app _apks; do
+	[ -n "$repo" ] && [ "$debs" != - ] || continue
 	page=1
 	while :; do
 		releases=$(api "repos/$ORG/$repo/releases?per_page=100&page=$page")
