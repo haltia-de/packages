@@ -6,7 +6,8 @@ ASSETS has one release asset per line: "REPOSITORY URL SHA256", the
 repository of haltia-de that released it, its download URL and the
 asset's digest. An asset is taken only when its repository has an apk
 column in PUBLISHERS (publishers.conf), its bytes match the digest and
-the pkgname of its .PKGINFO is one of that column's names; anything else
+the pkgname of its .PKGINFO is one of that column's names and its provides
+and replaces do not name another repository's packages; anything else
 is left out with a warning. STORE keeps the files under their digest
 (SHA256.apk): a file is downloaded into a temporary file and renamed only
 when it matches, and what no current asset names is removed, so replaced
@@ -43,8 +44,9 @@ def sha256(path):
     return h.hexdigest()
 
 
-def pkgname(path):
-    """The pkgname of an .apk's .PKGINFO, or None."""
+def pkginfo(path):
+    """The pkgname and provides/replaces of an .apk's .PKGINFO."""
+    name, claims = None, []
     try:
         with tarfile.open(path, "r:gz", ignore_zeros=True) as tar:
             for member in tar:
@@ -52,11 +54,13 @@ def pkgname(path):
                     for line in tar.extractfile(member).read().decode("utf-8", "replace").splitlines():
                         key, _sep, value = line.partition(" = ")
                         if key == "pkgname":
-                            return value
-                    return None
+                            name = value
+                        elif key in ("provides", "replaces"):
+                            claims.extend((key, item) for item in value.split())
+                    return name, claims
     except (tarfile.TarError, OSError, EOFError):
-        return None
-    return None
+        return None, []
+    return None, []
 
 
 def download(url, store):
@@ -70,6 +74,7 @@ def download(url, store):
 
 def main():
     allowed = publishers(sys.argv[1])
+    all_names = set().union(*allowed.values())
     store, out = sys.argv[2], sys.argv[3]
     os.makedirs(store, exist_ok=True)
     os.makedirs(out, exist_ok=True)
@@ -98,10 +103,23 @@ def main():
                 print(f"skip {asset}: not the release's file", file=sys.stderr)
                 continue
             os.replace(part, kept)
-        name = pkgname(kept)
+        name, claims = pkginfo(kept)
         if name not in names:
             os.remove(kept)
             print(f"skip {asset}: {repo} may not publish {name}", file=sys.stderr)
+            continue
+        foreign = None
+        for key, claim in claims:
+            if key == "provides" and claim.startswith(("so:", "cmd:", "pc:")):
+                continue
+            claimed_name = re.split(r"[<>=~]", claim, maxsplit=1)[0]
+            if claimed_name in all_names - names:
+                foreign = key, claimed_name
+                break
+        if foreign:
+            os.remove(kept)
+            key, claimed_name = foreign
+            print(f"skip {asset}: {repo} may not claim {key} {claimed_name}", file=sys.stderr)
             continue
         link = os.path.join(out, digest + ".apk")
         if os.path.lexists(link):
