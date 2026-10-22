@@ -19,6 +19,7 @@ mkapk() {
 	d=$tmp/src/$1-$2
 	mkdir -p "$d"
 	printf 'pkgname = %s\npkgver = %s\narch = noarch\n' "$1" "$2" >"$d/.PKGINFO"
+	[ "$#" -lt 3 ] || printf '%s\n' "$3" >>"$d/.PKGINFO"
 	tar -czf "$tmp/files/$1-$2.apk" -C "$d" .PKGINFO
 	echo "$tmp/files/$1-$2.apk"
 }
@@ -80,6 +81,47 @@ grep -qx "released: $left packages" "$tmp/log" || { cat "$tmp/log"; fail "second
 [ "$(ls -A "$tmp/store" | wc -l)" -eq "$left" ] || fail "second build: store has $(ls -A "$tmp/store" | wc -l) files, not $left"
 [ "$(sha256sum "$tmp/store/$victim.apk" | cut -d' ' -f1)" = "$victim" ] || fail "a changed cached file was kept"
 echo "ok: fetch-apks.py"
+
+# Claims on another publisher's package are rejected, including versioned
+# names, multiple names on a line and repeated fields after pkgname.
+: >"$tmp/assets"
+for key in provides replaces; do
+	for form in plain versioned multiple repeated; do
+		case $form in
+			plain) claims="$key = haltia-shell" ;;
+			versioned) claims="$key = haltia-shell>=1.0" ;;
+			multiple) claims="$key = b8k-paint=1.0 haltia-shell~1.0" ;;
+			repeated) claims="$key = b8k-paint=1.0
+$key = haltia-shell=1.0" ;;
+		esac
+		asset paint "$(mkapk haltia-paint "$key-$form" "$claims")"
+	done
+done
+asset paint "$(mkapk haltia-paint claims-own 'provides = b8k-paint=1.0
+provides = haltia-paint=1.0
+replaces = b8k-paint<2.0 haltia-paint=1.0
+provides = so:libpaint.so.1=1 cmd:haltia-shell=1 pc:haltia-shell=1')"
+# Check fresh downloads and cached metadata with the same policy.
+for run in fresh cached; do
+	rm -rf "$tmp/out"
+	if [ "$run" = cached ]; then
+		while read -r _repo url digest; do
+			cp "${url#file://}" "$tmp/store/$digest.apk"
+		done <"$tmp/assets"
+	fi
+	python3 fetch-apks.py publishers.conf "$tmp/store" "$tmp/out" <"$tmp/assets" >"$tmp/log" 2>&1 ||
+		{ cat "$tmp/log"; fail "claims: fetch-apks.py exited with an error"; }
+	grep -qx 'released: 1 packages' "$tmp/log" || { cat "$tmp/log"; fail "claims: own names or virtual provides rejected"; }
+	for key in provides replaces; do
+		for form in plain versioned multiple repeated; do
+			grep -qxF "skip haltia-paint-$key-$form.apk: paint may not claim $key haltia-shell" "$tmp/log" ||
+				fail "claims: $run $key $form was not rejected"
+		done
+	done
+	[ "$(ls -A "$tmp/store" | wc -l)" -eq 1 ] || fail "claims: rejected apk kept in store"
+	[ "$(ls -A "$tmp/out" | wc -l)" -eq 1 ] || fail "claims: rejected apk linked in out"
+done
+echo "ok: fetch-apks.py provides and replaces"
 
 # Every call of a script of this repository in the build scripts passes as
 # many arguments as the script's usage line names (two words run together
