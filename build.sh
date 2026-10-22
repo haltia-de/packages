@@ -1,13 +1,17 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0
-# Build the Haltia apk repository (ADR 0004, phase B), inside alpine:3.24:
+# Build the Haltia apk repository (ADR 0004, phase B), inside the image
+# haltia-apk that publish.yml builds (alpine:3.24 with the tools; nothing is
+# installed here, where the signing key is):
 #   docker run --rm -v "$PWD:/src" -e GH_TOKEN -e B8K_APK_PRIVKEY \
-#     alpine:3.24 sh /src/build.sh
+#     haltia-apk sh /src/build.sh
 # Every .apk of every release in the organization's repositories that
 # publishers.conf lets its repository publish and that matches its asset's
 # digest (fetch-apks.py), plus the meta packages of meta/, sorted by architecture (noarch into each), the
 # three newest versions of each package and every version a device's
-# packages.lock pins (keep-versions.py), indexed and signed, and the
+# packages.lock pins (keep-versions.py), checked (every pinned version is
+# there and every file passes apk verify, or the build fails and the old
+# site stays), indexed and signed, and the
 # AppStream catalog of their metainfo (build-appstream.py). Output:
 # /src/site, served by GitHub Pages as
 #   https://haltia-de.github.io/packages/alpine/v3.24/<arch>/
@@ -26,15 +30,17 @@ KEEP=3	# versions of each package in the index
 # versions their images pin stay installable.
 LOCKS="haltia-de/device-lenovo-b8000h/main/linux-port/apps/packages.lock"
 
-apk add -q --no-cache alpine-sdk curl jq tar python3
+for c in abuild apk curl git jq python3; do
+	command -v "$c" >/dev/null || { echo "build.sh: no $c, run it in the image of publish.yml" >&2; exit 1; }
+done
 rm -rf "$APKS"
 rm -f /src/cache/*.apk	# the cache by file name of older builds
-mkdir -p /root/.abuild "$STORE" "$APKS" /tmp/meta
+mkdir -p /root/.abuild "$STORE" "$APKS" /tmp/meta /src/cache/meta
 printf '%s\n' "${B8K_APK_PRIVKEY:?the signing key}" >/root/.abuild/$KEYNAME.rsa
 chmod 600 /root/.abuild/$KEYNAME.rsa
 cp /root/.abuild/$KEYNAME.rsa /root/.abuild/$NEWKEY.rsa
 cp /src/keys/$KEYNAME.rsa.pub /root/.abuild/
-cp /src/keys/$KEYNAME.rsa.pub /etc/apk/keys/
+cp /src/keys/*.rsa.pub /etc/apk/keys/	# apk verify: both names
 {
 	echo "PACKAGER_PRIVKEY=/root/.abuild/$KEYNAME.rsa"
 	echo 'PACKAGER="Haltia <noreply@github.com>"'
@@ -85,24 +91,44 @@ while :; do
 	repo_page=$((repo_page + 1))
 done
 python3 /src/fetch-apks.py /src/publishers.conf "$STORE" "$APKS" </tmp/assets
-# The versions the devices pin, under the plain name (a release names the
-# foreign architectures' files name.<arch>.apk).
-: >/tmp/pinned
+# The versions the devices pin, as "repository file", under the plain name
+# (a release names the foreign architectures' files name.<arch>.apk).
+: >/tmp/locked
 for l in $LOCKS; do
 	curl -fsSL -o /tmp/packages.lock "https://raw.githubusercontent.com/$l"
-	awk '!/^#/ && NF >= 4 { print $4 }' /tmp/packages.lock |
-		sed -e 's/\.armv7\.apk$/.apk/' -e 's/\.aarch64\.apk$/.apk/' -e 's/\.x86_64\.apk$/.apk/' >>/tmp/pinned
+	awk '!/^#/ && NF >= 4 { print $2, $4 }' /tmp/packages.lock |
+		sed -e 's/\.armv7\.apk$/.apk/' -e 's/\.aarch64\.apk$/.apk/' -e 's/\.x86_64\.apk$/.apk/' >>/tmp/locked
 done
+cut -d' ' -f2 /tmp/locked >/tmp/pinned
 echo "pinned: $(wc -l </tmp/pinned) packages"
 
-# The meta packages.
+# The meta packages, the same file as long as their folder is the same:
+# kept in cache/meta under the sha256 of the folder and built only when it
+# changes, reproducibly (SOURCE_DATE_EPOCH is the folder's last commit).
+# A new file under the same name in every build would let a client get the
+# index of one build and the package of the next, and fail the checksum.
+: >/tmp/meta-kept
 for d in /src/meta/*/; do
 	n=$(basename "$d")
-	rm -rf "/tmp/meta/$n"
-	cp -r "$d" "/tmp/meta/$n"
-	( cd "/tmp/meta/$n" && abuild -F checksum && abuild -F -d -P /tmp/metarepo )
+	sum=$(cd "$d" && find . -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+	kept=/src/cache/meta/$n-$sum.apk
+	if [ ! -s "$kept" ]; then
+		epoch=$(git -C /src -c safe.directory=/src log -1 --format=%ct -- "meta/$n")
+		[ -n "$epoch" ] || { echo "build.sh: meta/$n has no commit" >&2; exit 1; }
+		rm -rf "/tmp/meta/$n" /tmp/metarepo
+		cp -r "$d" "/tmp/meta/$n"
+		( cd "/tmp/meta/$n" && abuild -F checksum &&
+		  SOURCE_DATE_EPOCH=$epoch abuild -F -d -P /tmp/metarepo )
+		find /tmp/metarepo -name '*.apk' -exec cp {} "$kept.part" \;
+		mv "$kept.part" "$kept"
+		echo "$n: built"
+	fi
+	cp "$kept" "$APKS/meta-$n.apk"
+	echo "${kept##*/}" >>/tmp/meta-kept
 done
-find /tmp/metarepo -name '*.apk' -exec cp {} "$APKS/" \;
+for f in /src/cache/meta/*; do
+	grep -qxF "${f##*/}" /tmp/meta-kept || rm -f "$f"
+done
 
 # Sort, index, sign.
 rm -rf "$SITE"
@@ -132,9 +158,23 @@ done
 python3 /src/keep-versions.py apk "$KEEP" </tmp/apks >/tmp/old
 echo "older versions left out: $(wc -l </tmp/old) files"
 xargs -r rm -f </tmp/old
+# Nothing is signed unless every version a device of the organization pins
+# is there and every file passes apk verify: a failed build keeps the old
+# site.
+bad=0
+for p in $(awk -v org="$ORG/" 'index($1, org) == 1 { print $2 }' /tmp/locked | sort -u); do
+	ls "$SITE/alpine/$ALPINE"/*/"$p" >/dev/null 2>&1 ||
+		{ echo "build.sh: pinned $p is not in the repository" >&2; bad=1; }
+done
+for f in "$SITE/alpine/$ALPINE"/*/*.apk; do
+	[ -e "$f" ] || continue
+	apk verify "$f" >/dev/null 2>&1 ||
+		{ echo "build.sh: $f fails apk verify" >&2; bad=1; }
+done
+[ "$bad" = 0 ] || exit 1
 for a in $ARCHES; do
+	ls "$SITE/alpine/$ALPINE/$a"/*.apk >/dev/null 2>&1 || continue
 	( cd "$SITE/alpine/$ALPINE/$a"
-	  ls ./*.apk >/dev/null 2>&1 || continue
 	  apk index --no-warnings --quiet --output APKINDEX.tar.gz \
 		--description "Haltia $ALPINE $(date -u +%Y-%m-%d)" --rewrite-arch "$a" ./*.apk
 	  sign_both APKINDEX.tar.gz

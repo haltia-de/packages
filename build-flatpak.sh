@@ -1,7 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0
 # Build the Haltia Flatpak repository (docs/plans/desktop-packages.md in
-# haltia-de/haltia) on the Ubuntu runner, after build.sh:
+# haltia-de/haltia) on the Ubuntu runner, after build.sh, with flatpak and
+# ostree installed (publish.yml does that before the key is here):
 #   GH_TOKEN=… HALTIA_GPG_PRIVKEY=… sh build-flatpak.sh
 # The newest valid bundle of each program (made by haltia-de/ci's
 # flatpak.yml) is imported into an OSTree repository and signed. The
@@ -15,8 +16,11 @@ URL=https://haltia-de.github.io/packages/flatpak
 OUT=${OUT:-$PWD/site/flatpak}
 CACHE=${CACHE:-$PWD/cache/flatpak}
 
-command -v flatpak >/dev/null && command -v ostree >/dev/null || { sudo apt-get -qq update && sudo apt-get -qq install -y flatpak ostree >/dev/null; }
-export GNUPGHOME=$(mktemp -d)
+for c in flatpak ostree; do	# installed by publish.yml before the key is here
+	command -v "$c" >/dev/null || { echo "build-flatpak.sh: no $c" >&2; exit 1; }
+done
+GNUPGHOME=$(mktemp -d)
+export GNUPGHOME
 printf '%s\n' "${HALTIA_GPG_PRIVKEY:?the signing key}" | gpg --batch --quiet --import
 KEY=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
 GPGKEY=$(base64 -w0 keys/haltia-archive-keyring.gpg)
@@ -59,7 +63,7 @@ grep -v '^#' publishers.conf | while read -r repo _debs app _apks; do
 			refs=$(ostree refs --repo="$scratch" | grep -v '^appstream' | sort)
 			want=$(printf 'app/%s/x86_64/master' "$app")
 			if [ "$refs" != "$want" ]; then
-				echo "skip ${u##*/}: carries $(echo $refs), not $want"; rm -rf "$scratch"; continue
+				echo "skip ${u##*/}: carries $(echo "$refs" | paste -sd' '), not $want"; rm -rf "$scratch"; continue
 			fi
 			rm -rf "$scratch"
 			echo "$repo: $app from ${u##*/}"
