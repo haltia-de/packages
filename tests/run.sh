@@ -33,7 +33,7 @@ grep -v '^#' publishers.conf | while read -r repo _debs _app apks; do
 	done
 done
 expected=$(wc -l <"$tmp/assets")
-[ "$expected" -eq 31 ] || fail "publishers.conf: $expected apk names, not 31"
+[ "$expected" -eq 41 ] || fail "publishers.conf: $expected apk names, not 41"
 # The same file in two releases is taken once.
 head -1 "$tmp/assets" >>"$tmp/assets"
 # A name of another repository, an unlisted repository, a file that is not
