@@ -21,6 +21,11 @@ apk update && apk add haltia-desktop haltia-desktop-ru
 - `haltia-desktop`: the shell, `kit` and the programs for everyone.
 - `haltia-desktop-ru`: the programs for Russian services (MAX, Yandex Music,
   Gismeteo).
+- The Pertin Haltia image installs more than these two meta packages. The
+  device repository pins them in `linux-port/apps/packages.lock`: «Камера»
+  (`haltia-camera`), «Документы» (`haltia-documents`), the hidden «Почта»
+  (`haltia-mail`, which sends the helper's reports), `libcamera`, `libnice`
+  and `haltia-gst-webrtc`. They are not dependencies of `haltia-desktop`.
 - `haltia-keys`: the signing key under the name `haltia-de-6ad4bb12` and
   `/etc/apk/repositories.d/haltia.list`.
 - `postmarketos-ui-haltia`: Haltia as a postmarketOS user interface; greetd
