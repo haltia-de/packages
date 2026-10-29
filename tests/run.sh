@@ -82,12 +82,16 @@ grep -qx "released: $left packages" "$tmp/log" || { cat "$tmp/log"; fail "second
 [ "$(sha256sum "$tmp/store/$victim.apk" | cut -d' ' -f1)" = "$victim" ] || fail "a changed cached file was kept"
 echo "ok: fetch-apks.py"
 
-# Claims on another publisher's package are rejected, including versioned
+# Claims on unowned names are rejected, including versioned
 # names, multiple names on a line and repeated fields after pkgname.
 : >"$tmp/assets"
 for key in provides replaces; do
-	for form in plain versioned multiple repeated; do
+	for form in plain versioned multiple repeated busybox openrc version-colon empty-name; do
 		case $form in
+			busybox) claims="$key = busybox" ;;
+			openrc) claims="$key = openrc>=1.0" ;;
+			version-colon) claims="$key = busybox=cmd:haltia-paint" ;;
+			empty-name) claims="$key = >=1.0" ;;
 			plain) claims="$key = haltia-shell" ;;
 			versioned) claims="$key = haltia-shell>=1.0" ;;
 			multiple) claims="$key = b8k-paint=1.0 haltia-shell~1.0" ;;
@@ -97,10 +101,13 @@ $key = haltia-shell=1.0" ;;
 		asset paint "$(mkapk haltia-paint "$key-$form" "$claims")"
 	done
 done
-asset paint "$(mkapk haltia-paint claims-own 'provides = b8k-paint=1.0
+asset paint "$(mkapk haltia-paint claims-own 'provides = haltia-paint b8k-paint=1.0
 provides = haltia-paint=1.0
-replaces = b8k-paint<2.0 haltia-paint=1.0
-provides = so:libpaint.so.1=1 cmd:haltia-shell=1 pc:haltia-shell=1')"
+replaces = haltia-paint b8k-paint<2.0 haltia-paint=1.0
+provides = so:libpaint.so.1=1 cmd:haltia-shell=1 pc:haltia-shell=1 py3.14:paint=1
+replaces = so:libpaint.so.1=1 cmd:haltia-shell=1 pc:haltia-shell=1 py3.14:paint=1
+provides =
+replaces =   ')"
 # Check fresh downloads and cached metadata with the same policy.
 for run in fresh cached; do
 	rm -rf "$tmp/out"
@@ -111,10 +118,16 @@ for run in fresh cached; do
 	fi
 	python3 fetch-apks.py publishers.conf "$tmp/store" "$tmp/out" <"$tmp/assets" >"$tmp/log" 2>&1 ||
 		{ cat "$tmp/log"; fail "claims: fetch-apks.py exited with an error"; }
-	grep -qx 'released: 1 packages' "$tmp/log" || { cat "$tmp/log"; fail "claims: own names or virtual provides rejected"; }
+	grep -qx 'released: 1 packages' "$tmp/log" || { cat "$tmp/log"; fail "claims: expected only own names and virtual claims"; }
 	for key in provides replaces; do
-		for form in plain versioned multiple repeated; do
-			grep -qxF "skip haltia-paint-$key-$form.apk: paint may not claim $key haltia-shell" "$tmp/log" ||
+		for form in plain versioned multiple repeated busybox openrc version-colon empty-name; do
+			case $form in
+				busybox|version-colon) claimed=busybox ;;
+				openrc) claimed=openrc ;;
+				empty-name) claimed= ;;
+				*) claimed=haltia-shell ;;
+			esac
+			grep -qxF "skip haltia-paint-$key-$form.apk: paint may not claim $key $claimed" "$tmp/log" ||
 				fail "claims: $run $key $form was not rejected"
 		done
 	done
